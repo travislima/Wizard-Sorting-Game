@@ -57,15 +57,7 @@
   .title{text-align:center}
   .sparkles{position:fixed;inset:0;pointer-events:none;overflow:hidden}
   .sparkles span{position:absolute;animation:floaty linear infinite;color:#ffd78f;opacity:.6}
-  @keyframes floaty {
-  0%   { transform: translateY(0);    opacity: 0;   }
-  10%  { transform: translateY(-8px); opacity: 0.6; }
-  80%  { transform: translateY(-48px);opacity: 0.35;}
-  100% { transform: translateY(-60px);opacity: 0;   }
-}
-  70%  { transform: translateY(-40px); opacity: 0.4; }
-  100% { transform: translateY(-60px); opacity: 0; }
-}to{transform:translateY(-60px);opacity:0}}
+  @keyframes floaty{from{transform:translateY(0);opacity:.6}to{transform:translateY(-60px);opacity:0}}
   .crest{width:90px;height:90px;filter:drop-shadow(0 6px 12px rgba(0,0,0,.5))}
   .glyph{width:22px;height:22px;vertical-align:-4px;margin-right:8px}
   .bars{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:end;height:120px}
@@ -224,30 +216,6 @@
 @media (max-width:520px){
   #resultsScores.scores-grid{ grid-template-columns:repeat(2, minmax(120px,1fr)); }
 }
-
-
-/* === Utilities & A11y (non-breaking) === */
-.row{display:flex;align-items:center}
-.gap-8{gap:8px}
-.mb-6{margin-bottom:6px}
-button{min-height:44px}
-button:focus-visible{outline:2px solid #E2B44D;outline-offset:2px}
-@media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{animation:none !important;transition:none !important}
-}
-
-
-/* --- Smooth starfield (no hard reset) --- */
-#stars{ position:relative; overflow:hidden; }
-#stars \1
-  position:absolute; border-radius:50%;
-  background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 60%);
-  will-change: transform, opacity;
-}
-
-
-/* Seamless starfield reveal */
-#stars{}
 
 </style>
 
@@ -438,7 +406,7 @@ const HOUSE_ICONS = {
 
 function houseIcon(h){
   const src = HOUSE_ICONS[h];
-  return src ? '<img class="crest-img" loading="lazy" decoding="async" loading="lazy" decoding="async" alt="'+h+' crest" src="'+src+'"/ alt="${house} crest">' : '';
+  return src ? '<img class="crest-img" alt="'+h+' crest" src="'+src+'"/>' : '';
 }
 
 
@@ -1207,112 +1175,6 @@ function renderResultsScores(scores){
   else { wireStart(); }
 })();
 
-
-// --- Dual-layer continuous starfield (seamless, no container fade) ---
-(function(){
-  const container = document.getElementById('stars');
-  if (!container) return;
-
-  // Two layers for depth and to ensure there are always stars on-screen
-  const LAYERS = [
-    { count: 60, minSpeed: 20, maxSpeed: 50, minSize: 1, maxSize: 3, alpha: 0.55 },
-    { count: 30, minSpeed: 8,  maxSpeed: 20, minSize: 2, maxSize: 4, alpha: 0.28 }
-  ];
-  const RECYCLE_PADDING = 60; // spawn below the viewport with padding
-
-  const stars = []; // {el,x,y,speed,alpha}
-  let last = performance.now();
-
-  // Ensure container has relative positioning and overflow hidden
-  if (getComputedStyle(container).position === 'static') {
-    container.style.position = 'relative';
-  }
-  container.style.overflow = 'hidden';
-
-  function rnd(a,b){ return a + Math.random()*(b-a); }
-
-  function setPos(s, x, y){
-    s.x = x; s.y = y;
-    s.el.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
-  }
-
-  function makeStar(layer, startY, instantVisible){
-    const el = document.createElement('span');
-    el.className = 'star';
-    const w = container.clientWidth || window.innerWidth;
-    const h = container.clientHeight || window.innerHeight;
-    const x = Math.random() * w;
-    const y = (typeof startY === 'number') ? startY : Math.random() * h;
-    const sz = rnd(layer.minSize, layer.maxSize);
-    const speed = rnd(layer.minSpeed, layer.maxSpeed);
-    el.style.width = sz + 'px';
-    el.style.height = sz + 'px';
-    el.style.opacity = instantVisible ? String(layer.alpha) : '0';
-    el.style.transition = 'opacity 900ms linear';
-    el.style.willChange = 'transform,opacity';
-    container.appendChild(el);
-    const s = { el, x:0, y:0, speed, alpha: layer.alpha };
-    setPos(s, x, y);
-    if (!instantVisible){
-      requestAnimationFrame(() => { el.style.opacity = String(layer.alpha); });
-    }
-    return s;
-  }
-
-  function recycle(s, layer){
-    const w = container.clientWidth || window.innerWidth;
-    const h = container.clientHeight || window.innerHeight;
-    const x = Math.random() * w;
-    const y = h + RECYCLE_PADDING + Math.random()*RECYCLE_PADDING;
-    s.speed = rnd(layer.minSpeed, layer.maxSpeed);
-    const sz = rnd(layer.minSize, layer.maxSize);
-    s.el.style.width = sz + 'px';
-    s.el.style.height = sz + 'px';
-    setPos(s, x, y);
-    s.el.style.opacity = '0';
-    requestAnimationFrame(() => { s.el.style.opacity = String(layer.alpha); });
-  }
-
-  function tick(ts){
-    const dt = Math.min(0.05, (ts - last)/1000);
-    last = ts;
-    const h = container.clientHeight || window.innerHeight;
-    for (let i=0;i<stars.length;i++){
-      const item = stars[i];
-      setPos(item, item.x, item.y - item.speed*dt);
-      if (item.y < -20){
-        recycle(item, item.layer);
-      }
-    }
-    requestAnimationFrame(tick);
-  }
-
-  // Build initial population: some on-screen, some below (so there's always stock rising in)
-  const h0 = container.clientHeight || window.innerHeight;
-  for (const layer of LAYERS){
-    for (let i=0;i<layer.count;i++){
-      const startY = (Math.random() < 0.6) ? Math.random()*h0 : (h0 + Math.random()*RECYCLE_PADDING*2);
-      const s = makeStar(layer, startY, /*instantVisible*/ true);
-      s.layer = layer;
-      stars.push(s);
-    }
-  }
-
-  requestAnimationFrame(tick);
-})();
-
 </script>
-
-<div id="errorBanner" style="display:none;position:fixed;bottom:8px;left:8px;right:8px;background:#3b2a24;color:#fff;padding:8px 12px;border-radius:10px;z-index:9999"></div>
-<script>
-window.addEventListener('error', function(e){
-  var b = document.getElementById('errorBanner');
-  if(!b) return;
-  b.textContent = 'Script error: ' + (e.message || 'See console');
-  b.style.display = 'block';
-  setTimeout(function(){ b.style.display='none'; }, 4000);
-});
-</script>
-
 </body>
 </html>
